@@ -9,6 +9,7 @@ tornado_elasticsearch is available on the Python Package Index and can be
 installed using pip or easy_install:
 
 .. code-block:: sh
+
     pip install tornado_elasticsearch
 
 Example Request Handlers
