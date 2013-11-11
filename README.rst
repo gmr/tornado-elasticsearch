@@ -66,6 +66,11 @@ Example Request Handlers
             info = yield es.info()
             self.finish(info)
 
+
+Version History
+---------------
+- 0.1.0: Initial version
+
 LICENSE
 -------
 Copyright (c) 2013 Gavin M. Roy
@@ -93,10 +98,6 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-Version History
----------------
-- 0.1.0: Initial version
 
 .. |PyPI version| image:: https://badge.fury.io/py/tornado_elasticsearch.png
    :target: http://badge.fury.io/py/tornado_elasticsearch
