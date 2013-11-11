@@ -38,8 +38,7 @@ Example Request Handlers
                 result = yield self.es.get(index='test-index', doc_type='tweet',
                                            id=self.get_argument('id'))
             else:
-                result = yield self.es.search(index='test-index',
-                                              body={'query': {'match_all': {}}})
+                result = yield self.es.search(index='test-index')
             self.finish(result)
 
         @web.asynchronous
