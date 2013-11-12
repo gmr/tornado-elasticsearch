@@ -38,7 +38,7 @@ except ImportError:
     from urllib.parse import urlencode
 from tornado import version
 
-__version__ = '0.1.3'
+__version__ = '0.2.0'
 
 LOGGER = logging.getLogger(__name__)
 
@@ -114,7 +114,10 @@ class AsyncHttpConnection(Connection):
                              'tuple, not %s' % type(http_auth))
 
     def _request_kwargs(self, method, body, timeout):
-        kwargs = {'method': method, 'user_agent': self._user_agent}
+        if body and method == 'GET':
+            method = 'POST'
+        kwargs = {'method': method, 'user_agent': self._user_agent,
+                  'headers': self._headers}
         if self._auth_user and self._auth_password:
             kwargs['auth_username'] = self._auth_user
             kwargs['auth_password'] = self._auth_password

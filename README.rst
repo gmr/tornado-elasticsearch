@@ -25,6 +25,9 @@ Example Request Handlers
 
     class Example(web.RequestHandler):
 
+        def initialize(self):
+            self.es = AsyncElasticsearch()
+
         @web.asynchronous
         @gen.engine
         def delete(self, *args, **kwargs):
@@ -69,6 +72,7 @@ Example Request Handlers
 
 Version History
 ---------------
+- 0.2.0: Bugfix, force method to POST if GET and body passed
 - 0.1.0: Initial version
 
 LICENSE
