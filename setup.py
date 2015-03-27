@@ -16,7 +16,7 @@ except IOError:
 
 
 setuptools.setup(name='tornado_elasticsearch',
-                 version='0.2.0',
+                 version='0.3.0',
                  description=desc,
                  long_description=readme,
                  author='Gavin M. Roy',

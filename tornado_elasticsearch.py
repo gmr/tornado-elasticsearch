@@ -38,7 +38,7 @@ except ImportError:
     from urllib.parse import urlencode
 from tornado import version
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class AsyncHttpConnection(Connection):
             LOGGER.info('Response from %s: %s', url, response.code)
             if not (200 <= response.code < 300) and response.code not in ignore:
                 LOGGER.debug('Error: %r', response.body)
-                self.log_request_fail(method, url, duration, response.code)
+                self.log_request_fail(method, url, body, duration, response.code)
                 error = HTTP_EXCEPTIONS.get(response.code, TransportError)
                 raise error(response.code, response.body)
             self.log_request_success(method, request_uri, url, body,
