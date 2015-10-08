@@ -22,7 +22,8 @@ on how to use the API beyond the introduction for how to use with Tornado::
 from elasticsearch.connection.base import Connection
 from elasticsearch.exceptions import ConnectionError, \
     HTTP_EXCEPTIONS, \
-    NotFoundError
+    NotFoundError, \
+    ConnectionTimeout
 from elasticsearch.client import Elasticsearch
 from elasticsearch.transport import Transport, TransportError
 from elasticsearch.client.utils import query_params, _make_path
@@ -81,15 +82,16 @@ class AsyncHttpConnection(Connection):
 
         def on_response(response):
             duration = time.time() - self._start_time
+            raw_data = response.body.decode('utf-8')
             LOGGER.info('Response from %s: %s', url, response.code)
             if not (200 <= response.code < 300) and response.code not in ignore:
-                LOGGER.debug('Error: %r', response.body)
+                LOGGER.debug('Error: %r', raw_data)
                 self.log_request_fail(method, url, body, duration, response.code)
                 error = HTTP_EXCEPTIONS.get(response.code, TransportError)
-                raise error(response.code, response.body)
+                raise error(response.code, raw_data)
             self.log_request_success(method, request_uri, url, body,
-                                     response.code, response.body, duration)
-            callback((response.code, response.body))
+                                     response.code, raw_data, duration)
+            callback((response.code, response.headers, raw_data))
 
         LOGGER.debug('Fetching [%s] %s', kwargs['method'], request_uri)
         LOGGER.debug('kwargs: %r', kwargs)
@@ -160,6 +162,26 @@ class AsyncTransport(Transport):
         if body is not None:
             body = self.serializer.dumps(body)
 
+            # some clients or environments don't support sending GET with body
+            if method in ('HEAD', 'GET') and self.send_get_body_as != 'GET':
+                # send it as post instead
+                if self.send_get_body_as == 'POST':
+                    method = 'POST'
+
+                # or as source parameter
+                elif self.send_get_body_as == 'source':
+                    if params is None:
+                        params = {}
+                    params['source'] = body
+                    body = None
+
+        if body is not None:
+            try:
+                body = body.encode('utf-8')
+            except (UnicodeDecodeError, AttributeError):
+                # bytes/str - no need to re-encode
+                pass
+
         ignore = ()
         if params and 'ignore' in params:
             ignore = params.pop('ignore')
@@ -169,23 +191,32 @@ class AsyncTransport(Transport):
         for attempt in range(self.max_retries + 1):
             connection = self.get_connection()
             try:
-                (status,
-                 raw_data) = yield connection.perform_request(method, url,
+                result = yield connection.perform_request(method, url,
                                                               params, body,
                                                               ignore=ignore)
-            except ConnectionError:
-                self.mark_dead(connection)
+                (status, headers, data) = result
+            except TransportError as e:
+                retry = False
+                if isinstance(e, ConnectionTimeout):
+                    retry = self.retry_on_timeout
+                elif isinstance(e, ConnectionError):
+                    retry = True
+                elif e.status_code in self.retry_on_status:
+                    retry = True
 
-                # raise exception on last retry
-                if attempt == self.max_retries:
+                if retry:
+                    # only mark as dead if we are retrying
+                    self.mark_dead(connection)
+                    # raise exception on last retry
+                    if attempt == self.max_retries:
+                        raise
+                else:
                     raise
+
             else:
                 # connection didn't fail, confirm it's live status
                 self.connection_pool.mark_live(connection)
-
-                raise gen.Return((status,
-                                  self.serializer.loads(raw_data)
-                                  if raw_data else None))
+                raise gen.Return((status, self.deserializer.loads(data, headers.get('content-type') if data else None)))
 
 
 class AsyncElasticsearch(Elasticsearch):
