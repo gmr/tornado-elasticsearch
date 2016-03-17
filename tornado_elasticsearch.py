@@ -52,6 +52,7 @@ class AsyncHttpConnection(Connection):
     :param str|tuple http_auth: optional http auth information as either a
       colon delimited string `("username:password")` or
       tuple `(username, password)`
+    :param int request_timeout: optional default timeout in seconds for requests.
     :arg use_ssl: use ssl for the connection if `True`
 
     """
@@ -61,7 +62,7 @@ class AsyncHttpConnection(Connection):
     ssl_transport_schema = 'https'
 
     def __init__(self, host='localhost', port=9200, http_auth=None,
-                 use_ssl=False, **kwargs):
+                 use_ssl=False, request_timeout=None, **kwargs):
         super(AsyncHttpConnection, self).__init__(host=host, port=port,
                                                   **kwargs)
         self._assign_auth_values(http_auth)
@@ -71,6 +72,7 @@ class AsyncHttpConnection(Connection):
         self._client = httpclient.AsyncHTTPClient()
         self._headers = {'Content-Type': 'application/json; charset=UTF-8'}
         self._start_time = None
+        self.request_timeout = request_timeout
 
     @concurrent.return_future
     def perform_request(self, method, url, params=None, body=None,
@@ -120,6 +122,8 @@ class AsyncHttpConnection(Connection):
             method = 'POST'
         kwargs = {'method': method, 'user_agent': self._user_agent,
                   'headers': self._headers}
+        if self.request_timeout is not None:
+            kwargs['request_timeout'] = self.request_timeout
         if self._auth_user and self._auth_password:
             kwargs['auth_username'] = self._auth_user
             kwargs['auth_password'] = self._auth_password
