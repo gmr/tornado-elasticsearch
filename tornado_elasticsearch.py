@@ -84,7 +84,7 @@ class AsyncHttpConnection(Connection):
 
         def on_response(response):
             duration = time.time() - self._start_time
-            raw_data = response.body.decode('utf-8')
+            raw_data = response.body.decode('utf-8') if response.body is not None else None
             LOGGER.info('Response from %s: %s', url, response.code)
             if not (200 <= response.code < 300) and response.code not in ignore:
                 LOGGER.debug('Error: %r', raw_data)
