@@ -285,7 +285,7 @@ class AsyncElasticsearch(Elasticsearch):
         :arg version: Explicit version number for concurrency control
         :arg version_type: Specific version type
         """
-        result = self.index(index, doc_type, body, id=id, params=params,
+        result = yield self.index(index, doc_type, body, id=id, params=params,
                             op_type='create')
         raise gen.Return(result)
 
