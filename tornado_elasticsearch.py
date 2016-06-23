@@ -62,13 +62,14 @@ class AsyncHttpConnection(Connection):
     ssl_transport_schema = 'https'
 
     def __init__(self, host='localhost', port=9200, http_auth=None,
-                 use_ssl=False, request_timeout=None, **kwargs):
+                 use_ssl=False, request_timeout=None, max_clients=10, **kwargs):
         super(AsyncHttpConnection, self).__init__(host=host, port=port,
                                                   **kwargs)
         self._assign_auth_values(http_auth)
         self.base_url = '%s://%s:%s%s' % (self.ssl_transport_schema if use_ssl
                                           else self.transport_schema,
                                           host, port, self.url_prefix)
+        httpclient.AsyncHTTPClient.configure(None, max_clients=max_clients)
         self._client = httpclient.AsyncHTTPClient()
         self._headers = {'Content-Type': 'application/json; charset=UTF-8'}
         self._start_time = None
