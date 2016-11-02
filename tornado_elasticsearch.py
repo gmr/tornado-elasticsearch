@@ -39,7 +39,7 @@ except ImportError:
     from urllib.parse import urlencode
 from tornado import version
 
-__version__ = '0.4.0'
+__version__ = '0.4.0.quid1'
 
 LOGGER = logging.getLogger(__name__)
 
@@ -132,6 +132,8 @@ class AsyncHttpConnection(Connection):
             kwargs['body'] = body
         if timeout:
             kwargs['request_timeout'] = timeout
+
+        kwargs['allow_nonstandard_methods'] = True
         return kwargs
 
     def _request_uri(self, url, params):
@@ -620,8 +622,8 @@ class AsyncElasticsearch(Elasticsearch):
         raise gen.Return(data)
 
     @gen.coroutine
-    @query_params('scroll')
-    def scroll(self, scroll_id, params=None):
+    @query_params()
+    def scroll(self, scroll_id, scroll, params=None):
         """
         Scroll a search request created by specifying the scroll parameter.
         `<http://www.elasticsearch.org/guide/reference/api/search/scroll/>`_
@@ -630,11 +632,22 @@ class AsyncElasticsearch(Elasticsearch):
         :arg scroll: Specify how long a consistent view of the index should be
             maintained for scrolled search
         """
-        _, data = yield self.transport.perform_request('GET',
+        body = {
+            "scroll": scroll,
+            "scroll_id": scroll_id
+        }
+
+        if params:
+            if "scroll" in params.keys():
+                params.pop("scroll")
+            if "scroll_id" in params.keys():
+                params.pop("scroll_id")
+
+        _, data = yield self.transport.perform_request('POST',
                                                        _make_path('_search',
-                                                                  'scroll',
-                                                                  scroll_id),
-                                                                  params=params)
+                                                                  'scroll'),
+                                                       body=body,
+                                                       params=params)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -647,13 +660,22 @@ class AsyncElasticsearch(Elasticsearch):
 
         :arg scroll_id: The scroll ID or a list of scroll IDs
         """
+        if not isinstance(scroll_id, list):
+            scroll_id = [scroll_id]
+
+        body = {
+            "scroll_id": scroll_id
+        }
+
+        if params and "scroll_id" in params.keys():
+            params.pop("scroll_id")
+
         _, data = yield self.transport.perform_request('DELETE',
                                                        _make_path('_search',
-                                                                  'scroll',
-                                                                  scroll_id),
+                                                                  'scroll'),
+                                                       body=body,
                                                        params=params)
         raise gen.Return(data)
-
 
     @gen.coroutine
     @query_params('consistency', 'parent', 'refresh', 'replication', 'routing',
