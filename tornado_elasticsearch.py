@@ -20,10 +20,7 @@ on how to use the API beyond the introduction for how to use with Tornado::
 
 """
 from elasticsearch.connection.base import Connection
-from elasticsearch.exceptions import ConnectionError, \
-    HTTP_EXCEPTIONS, \
-    NotFoundError, \
-    ConnectionTimeout
+from elasticsearch import exceptions
 from elasticsearch.client import Elasticsearch
 from elasticsearch.transport import Transport, TransportError
 from elasticsearch.client.utils import query_params, _make_path
@@ -39,7 +36,7 @@ except ImportError:
     from urllib.parse import urlencode
 from tornado import version
 
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,10 +47,10 @@ class AsyncHttpConnection(Connection):
     :param str host: The host for the connection
     :param int port: The port for the connection
     :param str|tuple http_auth: optional http auth information as either a
-      colon delimited string `("username:password")` or
-      tuple `(username, password)`
-    :param int request_timeout: optional default timeout in seconds for requests.
-    :arg use_ssl: use ssl for the connection if `True`
+      colon delimited string ``("username:password")`` or
+      tuple ``(username, password)``
+    :param int request_timeout: optional default timeout in seconds
+    :arg use_ssl: use ssl for the connection if ``True``
 
     """
     _auth_user = None
@@ -84,12 +81,16 @@ class AsyncHttpConnection(Connection):
 
         def on_response(response):
             duration = time.time() - self._start_time
-            raw_data = response.body.decode('utf-8') if response.body is not None else None
+            raw_data = response.body.decode('utf-8') \
+                if response.body is not None else None
             LOGGER.info('Response from %s: %s', url, response.code)
-            if not (200 <= response.code < 300) and response.code not in ignore:
+            if not (200 <= response.code < 300) and \
+                    response.code not in ignore:
                 LOGGER.debug('Error: %r', raw_data)
-                self.log_request_fail(method, url, body, duration, response.code)
-                error = HTTP_EXCEPTIONS.get(response.code, TransportError)
+                self.log_request_fail(method, url, body, duration,
+                                      response.code)
+                error = exceptions.HTTP_EXCEPTIONS.get(response.code,
+                                                       TransportError)
                 raise error(response.code, raw_data)
             self.log_request_success(method, request_uri, url, body,
                                      response.code, raw_data, duration)
@@ -112,7 +113,7 @@ class AsyncHttpConnection(Connection):
         elif isinstance(http_auth, (tuple, list)):
             self._auth_user, self._auth_password = http_auth
         elif isinstance(http_auth, str):
-            self._auth_user, self._auth_password = http_auth.split('.')
+            self._auth_user, self._auth_password = http_auth.split(':')
         else:
             raise ValueError('HTTP Auth Credentials should be str or '
                              'tuple, not %s' % type(http_auth))
@@ -144,9 +145,9 @@ class AsyncTransport(Transport):
 
     @gen.coroutine
     def perform_request(self, method, url, params=None, body=None):
-        """Perform the actual request. Retrieve a connection from the connection
-        pool, pass all the information to it's perform_request method and
-        return the data.
+        """Perform the actual request. Retrieve a connection from the
+        connection pool, pass all the information to it's perform_request
+        method and return the data.
 
         If an exception was raised, mark the connection as failed and retry (up
         to `max_retries` times).
@@ -196,14 +197,14 @@ class AsyncTransport(Transport):
             connection = self.get_connection()
             try:
                 result = yield connection.perform_request(method, url,
-                                                              params, body,
-                                                              ignore=ignore)
+                                                          params, body,
+                                                          ignore=ignore)
                 (status, headers, data) = result
             except TransportError as e:
                 retry = False
-                if isinstance(e, ConnectionTimeout):
+                if isinstance(e, exceptions.ConnectionTimeout):
                     retry = self.retry_on_timeout
-                elif isinstance(e, ConnectionError):
+                elif isinstance(e, exceptions.ConnectionError):
                     retry = True
                 elif e.status_code in self.retry_on_status:
                     retry = True
@@ -220,7 +221,10 @@ class AsyncTransport(Transport):
             else:
                 # connection didn't fail, confirm it's live status
                 self.connection_pool.mark_live(connection)
-                raise gen.Return((status, self.deserializer.loads(data, headers.get('content-type') if data else None)))
+                response = self.deserializer.loads(data,
+                                                   headers.get('content-type')
+                                                   if data else None)
+                raise gen.Return((status, response))
 
 
 class AsyncElasticsearch(Elasticsearch):
@@ -286,7 +290,7 @@ class AsyncElasticsearch(Elasticsearch):
         :arg version_type: Specific version type
         """
         result = yield self.index(index, doc_type, body, id=id, params=params,
-                            op_type='create')
+                                  op_type='create')
         raise gen.Return(result)
 
     @gen.coroutine
@@ -316,10 +320,9 @@ class AsyncElasticsearch(Elasticsearch):
         :arg version_type: Specific version type
 
         """
-        _, data = yield self.transport.perform_request('PUT' if id else 'POST',
-                                                       _make_path(index,
-                                                                  doc_type, id),
-                                                       params=params, body=body)
+        _, data = yield self.transport.perform_request(
+            'PUT' if id else 'POST', _make_path(index, doc_type, id),
+            params=params, body=body)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -343,10 +346,9 @@ class AsyncElasticsearch(Elasticsearch):
         :arg routing: Specific routing value
         """
         try:
-            self.transport.perform_request('HEAD',
-                                           _make_path(index, doc_type, id),
-                                           params=params)
-        except NotFoundError:
+            self.transport.perform_request(
+                'HEAD', _make_path(index, doc_type, id), params=params)
+        except exceptions.NotFoundError:
             return gen.Return(False)
         raise gen.Return(True)
 
@@ -378,10 +380,8 @@ class AsyncElasticsearch(Elasticsearch):
             performing the operation
         :arg routing: Specific routing value
         """
-        _, data = yield self.transport.perform_request('GET',
-                                                       _make_path(index,
-                                                                  doc_type, id),
-                                                       params=params)
+        _, data = yield self.transport.perform_request(
+            'GET', _make_path(index, doc_type, id), params=params)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -409,11 +409,8 @@ class AsyncElasticsearch(Elasticsearch):
             performing the operation
         :arg routing: Specific routing value
         """
-        _, data = yield self.transport.perform_request('GET',
-                                                       _make_path(index,
-                                                                  doc_type, id,
-                                                                  '_source'),
-                                                       params=params)
+        _, data = yield self.transport.perform_request(
+            'GET', _make_path(index, doc_type, id, '_source'), params=params)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -445,11 +442,9 @@ class AsyncElasticsearch(Elasticsearch):
             performing the operation
         :arg routing: Specific routing value
         """
-        _, data = yield self.transport.perform_request('GET',
-                                                       _make_path(index,
-                                                                  doc_type,
-                                                                  '_mget'),
-                                                       params=params, body=body)
+        _, data = yield self.transport.perform_request(
+            'GET', _make_path(index, doc_type, '_mget'),
+            params=params, body=body)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -834,10 +829,11 @@ class AsyncElasticsearch(Elasticsearch):
 
     @gen.coroutine
     @query_params('boost_terms', 'max_doc_freq', 'max_query_terms',
-        'max_word_len', 'min_doc_freq', 'min_term_freq', 'min_word_len',
-        'mlt_fields', 'percent_terms_to_match', 'routing', 'search_from',
-        'search_indices', 'search_query_hint', 'search_scroll', 'search_size',
-        'search_source', 'search_type', 'search_types', 'stop_words')
+                  'max_word_len', 'min_doc_freq', 'min_term_freq',
+                  'min_word_len', 'mlt_fields', 'percent_terms_to_match',
+                  'routing', 'search_from', 'search_indices',
+                  'search_query_hint', 'search_scroll', 'search_size',
+                  'search_source', 'search_type', 'search_types', 'stop_words')
     def mlt(self, index, doc_type, id, body=None, params=None):
         """
         Get documents that are "like" a specified document.
@@ -858,7 +854,7 @@ class AsyncElasticsearch(Elasticsearch):
         :arg min_doc_freq: The word occurrence frequency as count: words with
             lower occurrence in the corpus will be ignored
         :arg min_term_freq: The term frequency as percent: terms with lower
-            occurence in the source document will be ignored
+            occurrence in the source document will be ignored
         :arg min_word_len: The minimum length of the word: shorter words will
             be ignored
         :arg mlt_fields: Specific fields to perform the query against
@@ -879,9 +875,7 @@ class AsyncElasticsearch(Elasticsearch):
             against (default: the same type as the document)
         :arg stop_words: A list of stop words to be ignored
         """
-        _, data = yield self.transport.perform_request('GET',
-                                                       _make_path(index,
-                                                                  doc_type, id,
-                                                                  '_mlt'),
-                                                       params=params, body=body)
+        _, data = yield self.transport.perform_request(
+            'GET', _make_path(index, doc_type, id, '_mlt'),
+            params=params, body=body)
         raise gen.Return(data)

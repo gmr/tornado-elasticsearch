@@ -1,0 +1,7 @@
+coverage
+codecov
+nose
+mock
+yapf
+pep8
+-r requirements.txt
