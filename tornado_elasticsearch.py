@@ -59,13 +59,14 @@ class AsyncHttpConnection(Connection):
     ssl_transport_schema = 'https'
 
     def __init__(self, host='localhost', port=9200, http_auth=None,
-                 use_ssl=False, request_timeout=None, **kwargs):
+                 use_ssl=False, request_timeout=None, max_clients=10, **kwargs):
         super(AsyncHttpConnection, self).__init__(host=host, port=port,
                                                   **kwargs)
         self._assign_auth_values(http_auth)
         self.base_url = '%s://%s:%s%s' % (self.ssl_transport_schema if use_ssl
                                           else self.transport_schema,
                                           host, port, self.url_prefix)
+        httpclient.AsyncHTTPClient.configure(None, max_clients=max_clients)
         self._client = httpclient.AsyncHTTPClient()
         self._headers = {'Content-Type': 'application/json; charset=UTF-8'}
         self._start_time = None
@@ -132,6 +133,8 @@ class AsyncHttpConnection(Connection):
             kwargs['body'] = body
         if timeout:
             kwargs['request_timeout'] = timeout
+
+        kwargs['allow_nonstandard_methods'] = True
         return kwargs
 
     def _request_uri(self, url, params):
@@ -385,6 +388,30 @@ class AsyncElasticsearch(Elasticsearch):
         raise gen.Return(data)
 
     @gen.coroutine
+    @query_params('allow_no_indices', 'expand_wildcards', 'ignore_unavailable',
+                  'local')
+    def get_alias(self, index=None, name=None, params=None):
+        """
+        Retrieve a specified alias.
+        `<http://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html>`_
+        :arg index: A comma-separated list of index names to filter aliases
+        :arg name: A comma-separated list of alias names to return
+        :arg allow_no_indices: Whether to ignore if a wildcard indices
+            expression resolves into no concrete indices. (This includes `_all`
+            string or when no indices have been specified)
+        :arg expand_wildcards: Whether to expand wildcard expression to
+            concrete indices that are open, closed or both., default 'all',
+            valid choices are: 'open', 'closed', 'none', 'all'
+        :arg ignore_unavailable: Whether specified concrete indices should be
+            ignored when unavailable (missing or closed)
+        :arg local: Return local information, do not retrieve the state from
+            master node (default: false)
+        """
+        _, result = yield self.transport.perform_request(
+            'GET', _make_path(index, '_alias', name), params=params)
+        raise gen.Return(result)
+
+    @gen.coroutine
     @query_params('_source_exclude', '_source_include', 'parent', 'preference',
                   'realtime', 'refresh', 'routing')
     def get_source(self, index, id, doc_type='_all', params=None):
@@ -614,8 +641,8 @@ class AsyncElasticsearch(Elasticsearch):
         raise gen.Return(data)
 
     @gen.coroutine
-    @query_params('scroll')
-    def scroll(self, scroll_id, params=None):
+    @query_params()
+    def scroll(self, scroll_id, scroll, params=None):
         """
         Scroll a search request created by specifying the scroll parameter.
         `<http://www.elasticsearch.org/guide/reference/api/search/scroll/>`_
@@ -624,11 +651,22 @@ class AsyncElasticsearch(Elasticsearch):
         :arg scroll: Specify how long a consistent view of the index should be
             maintained for scrolled search
         """
-        _, data = yield self.transport.perform_request('GET',
+        body = {
+            "scroll": scroll,
+            "scroll_id": scroll_id
+        }
+
+        if params:
+            if "scroll" in params.keys():
+                params.pop("scroll")
+            if "scroll_id" in params.keys():
+                params.pop("scroll_id")
+
+        _, data = yield self.transport.perform_request('POST',
                                                        _make_path('_search',
-                                                                  'scroll',
-                                                                  scroll_id),
-                                                                  params=params)
+                                                                  'scroll'),
+                                                       body=body,
+                                                       params=params)
         raise gen.Return(data)
 
     @gen.coroutine
@@ -641,13 +679,22 @@ class AsyncElasticsearch(Elasticsearch):
 
         :arg scroll_id: The scroll ID or a list of scroll IDs
         """
+        if not isinstance(scroll_id, list):
+            scroll_id = [scroll_id]
+
+        body = {
+            "scroll_id": scroll_id
+        }
+
+        if params and "scroll_id" in params.keys():
+            params.pop("scroll_id")
+
         _, data = yield self.transport.perform_request('DELETE',
                                                        _make_path('_search',
-                                                                  'scroll',
-                                                                  scroll_id),
+                                                                  'scroll'),
+                                                       body=body,
                                                        params=params)
         raise gen.Return(data)
-
 
     @gen.coroutine
     @query_params('consistency', 'parent', 'refresh', 'replication', 'routing',
@@ -776,6 +823,33 @@ class AsyncElasticsearch(Elasticsearch):
                                                                   doc_type,
                                                                   '_query'),
                                                        params=params, body=body)
+        raise gen.Return(data)
+
+    @gen.coroutine
+    @query_params('allow_no_indices', 'expand_wildcards', 'ignore_unavailable',
+                  'local')
+    def get_mapping(self, index=None, doc_type=None, params=None):
+        """
+        Retrieve mapping definition of index or index/type.
+        `<http://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html>`_
+        :arg index: A comma-separated list of index names
+        :arg doc_type: A comma-separated list of document types
+        :arg allow_no_indices: Whether to ignore if a wildcard indices
+            expression resolves into no concrete indices. (This includes `_all`
+            string or when no indices have been specified)
+        :arg expand_wildcards: Whether to expand wildcard expression to concrete
+            indices that are open, closed or both., default 'open', valid
+            choices are: 'open', 'closed', 'none', 'all'
+        :arg ignore_unavailable: Whether specified concrete indices should be
+            ignored when unavailable (missing or closed)
+        :arg local: Return local information, do not retrieve the state from
+            master node (default: false)
+        """
+        _, data = yield self.transport.perform_request('GET',
+                                                       _make_path(index,
+                                                                  '_mapping',
+                                                                  doc_type),
+                                                       params=params)
         raise gen.Return(data)
 
     @gen.coroutine
