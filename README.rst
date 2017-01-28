@@ -81,6 +81,7 @@ Version History
   - Add max_clients to AsyncElasticSearch constructor
   - Added get_alias
   - Added get_mapping
+  - Add cluster health
 - 0.4.0: Bugfix: Python3 decoding issues
 - 0.3.0: Bugfix: Add body to log_request_fail call (#1)
 - 0.2.0: Bugfix: force method to POST if GET and body passed
