@@ -3,7 +3,7 @@ tornado_elasticsearch
 Extends the official Elasticsearch Python API adding Tornado AsyncHTTPClient
 support.
 
-|Version| |Downloads| |LICENSE|
+|Version| |LICENSE|
 
 Installation
 ------------
@@ -72,15 +72,22 @@ Example Request Handlers
 
 Version History
 ---------------
+- 0.5.0:
+  - Bugfixes:
+    - HTTP Auth
+    - Add timeout support
+    - Allow scroll to use post, since scroll_id can be too long
+    - Fix yield issue
+  - Add max_clients to AsyncElasticSearch constructor
+  - Added get_alias
+  - Added get_mapping
+- 0.4.0: Bugfix: Python3 decoding issues
 - 0.3.0: Bugfix: Add body to log_request_fail call (#1)
 - 0.2.0: Bugfix: force method to POST if GET and body passed
 - 0.1.0: Initial version
 
 .. |Version| image:: https://img.shields.io/pypi/v/tornado_elasticsearch.svg?
    :target: http://badge.fury.io/py/tornado_elasticsearch
-
-.. |Downloads| image:: https://img.shields.io/pypi/dm/tornado_elasticsearch.svg?
-   :target: https://pypi.python.org/pypi/tornado_elasticsearch
 
 .. |License| image:: https://img.shields.io/pypi/l/tornado_elasticsearch.svg?
    :target: https://tornado_elasticsearch.readthedocs.org
