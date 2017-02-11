@@ -88,7 +88,7 @@ class AsyncHttpConnection(Connection):
             if not (200 <= response.code < 300) and \
                     response.code not in ignore:
                 LOGGER.debug('Error: %r', raw_data)
-                self.log_request_fail(method, url, body, duration,
+                self.log_request_fail(method, request_uri, url, body, duration,
                                       response.code)
                 error = exceptions.HTTP_EXCEPTIONS.get(response.code,
                                                        TransportError)
@@ -226,7 +226,7 @@ class AsyncTransport(Transport):
                 self.connection_pool.mark_live(connection)
                 response = self.deserializer.loads(data,
                                                    headers.get('content-type')
-                                                   if data else None)
+                                                   ) if data else None
                 raise gen.Return((status, response))
 
 
